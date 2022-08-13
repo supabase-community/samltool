@@ -10,7 +10,7 @@ declare class Go {
 
 interface Library {
 	parse: (
-		what: "request" | "assertion",
+		what: "request" | "assertion" | "metadata",
 		data: string
 	) => { ok: { json: string; indent: string }; error: string };
 
@@ -66,7 +66,10 @@ const result = <T>({ error, ok }: { ok: T; error: string }) => {
 	return ok;
 };
 
-export const parse = async (what: "request" | "assertion", data: string) => {
+export const parse = async (
+	what: "request" | "assertion" | "metadata",
+	data: string
+) => {
 	const { parse } = await instance();
 
 	const { json, indent } = result(parse(what, data));

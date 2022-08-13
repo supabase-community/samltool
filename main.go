@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hf/saml"
+	"github.com/hf/saml/samlsp"
 )
 
 func main() {
@@ -124,6 +125,7 @@ func genprovider(this js.Value, args []js.Value) any {
 	}
 
 	return returnResult(map[string]interface{}{
+		"flavor":     flavor,
 		"id":         id,
 		"cert":       base64.StdEncoding.EncodeToString(certDer),
 		"metadata":   string(metadataXML),
@@ -157,6 +159,14 @@ func parse(this js.Value, args []js.Value) any {
 		}
 
 		data = assertion
+
+	case "metadata":
+		metadata, err := samlsp.ParseMetadata([]byte(args[1].String()))
+		if err != nil {
+			return returnError(err)
+		}
+
+		data = metadata
 
 	default:
 		return nil

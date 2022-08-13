@@ -12,6 +12,15 @@ export interface Provider {
 	sloURL: string;
 	notBefore: string;
 	notAfter: string;
+	serviceProviders: {
+		[entityID: string]: {
+			name: string;
+			entityID: string;
+			acsURL: string;
+			signingCert: string;
+			signedRequests: boolean;
+		};
+	};
 }
 
 export const emptyProvider = () => {
@@ -27,6 +36,7 @@ export const emptyProvider = () => {
 		sloURL: "",
 		notBefore: "",
 		notAfter: "",
+		serviceProviders: {},
 	};
 };
 
@@ -80,6 +90,20 @@ const removeProvider = (
 	return newProviders;
 };
 
+const updateProvider = (providers: Provider[], provider: Provider) => {
+	window.localStorage.setItem(
+		`identityProvider:${provider.id}`,
+		JSON.stringify(provider)
+	);
+
+	const newProviders = [...providers];
+	const index = newProviders.findIndex((x) => x.id === provider.id);
+
+	newProviders[index] = { ...provider };
+
+	return newProviders;
+};
+
 export const useProviders = () => {
 	const [providers, setProviders] = useState(loadProviders());
 
@@ -90,6 +114,9 @@ export const useProviders = () => {
 		},
 		removeProvider: (provider: Provider | { id: string }) => {
 			setProviders(removeProvider(providers, provider));
+		},
+		updateProvider: (provider: Provider) => {
+			setProviders(updateProvider(providers, provider));
 		},
 	};
 };
