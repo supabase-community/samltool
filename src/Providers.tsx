@@ -16,9 +16,11 @@ export interface Provider {
 		[entityID: string]: {
 			name: string;
 			entityID: string;
+			siteURL: string;
 			acsURL: string;
 			signingCert: string;
 			signedRequests: boolean;
+			metadata: string;
 		};
 	};
 }

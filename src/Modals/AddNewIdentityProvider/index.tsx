@@ -78,6 +78,7 @@ const ModalAddNewIdentityProvider = ({
 						<FormControl>
 							<FormLabel>Name</FormLabel>
 							<Input
+								placeholder="Give it a name"
 								value={newProvider.name}
 								onChange={(e) =>
 									setNewProvider({

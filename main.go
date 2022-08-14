@@ -27,7 +27,8 @@ func main() {
 func library(c chan struct{}) any {
 	return map[string]interface{}{
 		"genprovider": js.FuncOf(genprovider),
-		"parse":       js.FuncOf(parse),
+		"parsexml":       js.FuncOf(parsexml),
+		"makexml": js.FuncOf(makexml),
 	}
 }
 
@@ -138,7 +139,7 @@ func genprovider(this js.Value, args []js.Value) any {
 	})
 }
 
-func parse(this js.Value, args []js.Value) any {
+func parsexml(this js.Value, args []js.Value) any {
 	var data any
 
 	switch args[0].String() {
@@ -185,5 +186,29 @@ func parse(this js.Value, args []js.Value) any {
 	return returnResult(map[string]interface{}{
 		"json":   string(jsonOut),
 		"indent": string(xmlOut),
+	})
+}
+
+func makexml(this js.Value, args []js.Value) any {
+	var data interface{}
+
+	switch args[0].String() {
+	case "metadata":
+		var metadata saml.EntityDescriptor
+
+		if err := json.Unmarshal([]byte(args[1].String()), &metadata); err != nil {
+			return returnError(err)
+		}
+
+		data = &metadata
+	}
+
+	xmlData, err := xml.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return returnError(err)
+	}
+
+	return returnResult(map[string]interface{}{
+		"xml": string(xmlData),
 	})
 }

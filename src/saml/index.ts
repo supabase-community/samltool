@@ -9,10 +9,15 @@ declare class Go {
 }
 
 interface Library {
-	parse: (
+	parsexml: (
 		what: "request" | "assertion" | "metadata",
 		data: string
 	) => { ok: { json: string; indent: string }; error: string };
+
+	makexml: (
+		what: "metadata",
+		data: string
+	) => { ok: { json: string; xml: string }; error: string };
 
 	genprovider: (
 		flavor: "gsuite",
@@ -70,13 +75,23 @@ export const parse = async (
 	what: "request" | "assertion" | "metadata",
 	data: string
 ) => {
-	const { parse } = await instance();
+	const { parsexml } = await instance();
 
-	const { json, indent } = result(parse(what, data));
+	const { json, indent } = result(parsexml(what, data));
 
 	return {
 		json: JSON.parse(json),
 		indent,
+	};
+};
+
+export const make = async (what: "metadata", data: any) => {
+	const { makexml } = await instance();
+
+	const { xml } = result(makexml(what, JSON.stringify(data)));
+
+	return {
+		xml,
 	};
 };
 
@@ -106,7 +121,7 @@ export const genprovider = async (flavor: "gsuite") => {
 		const url = new URL(window.location.href);
 
 		url.pathname = "/gsuite/o/saml2/idp";
-		url.searchParams.forEach((p) => {
+		url.searchParams.forEach((_, p) => {
 			url.searchParams.delete(p);
 		});
 

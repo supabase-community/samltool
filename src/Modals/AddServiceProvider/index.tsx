@@ -35,7 +35,9 @@ import {
 	Provider,
 } from "../../Providers";
 
-import { parse } from "../../saml";
+import { parse, make } from "../../saml";
+
+const CERTIFICATE_PEM_REGEX = /(\s*-+\s*(BEGIN|END)\s+CERTIFICATE\s*-+\s*)/i;
 
 const AddServiceProvider = ({
 	isOpen,
@@ -50,6 +52,7 @@ const AddServiceProvider = ({
 
 	const [providerID, setProviderID] = useState(providers[0].id);
 	const [name, setName] = useState("");
+	const [siteURL, setSiteURL] = useState("");
 	const [metadata, setMetadata] = useState("");
 	const [metadataError, setMetadataError] = useState("");
 
@@ -60,19 +63,37 @@ const AddServiceProvider = ({
 	const [signedRequests, setSignedRequests] = useState(false);
 
 	const provider = useMemo(
-		() => providers.find((x) => x.id === providerID),
+		() => providers.find((x) => x.id === providerID)!,
 		[providerID, providers]
 	);
 
-	useEffect(() => {
-		let ignore = false;
-
-		if (!metadata) {
+	const resetState = useMemo(
+		() => () => {
+			setName("");
+			setSiteURL("");
+			setMetadata("");
 			setMetadataError("");
 			setEntityID("");
 			setACS("");
 			setCert("");
 			setSignedRequests(false);
+		},
+		[]
+	);
+
+	useEffect(() => {
+		if (isOpen) {
+			return;
+		}
+
+		resetState();
+	}, [isOpen]);
+
+	useEffect(() => {
+		let ignore = false;
+
+		if (!metadata) {
+			resetState();
 			return;
 		}
 
@@ -80,6 +101,8 @@ const AddServiceProvider = ({
 			try {
 				const { json, indent } = await parse("metadata", metadata);
 				if (ignore) return;
+
+				console.log(json);
 
 				setMetadataError("");
 				setEntityID(json.EntityID);
@@ -138,6 +161,14 @@ const AddServiceProvider = ({
 								placeholder="Give it a name"
 								value={name}
 								onChange={(e) => setName(e.target.value.trimLeft())}
+							/>
+						</FormControl>
+						<FormControl>
+							<FormLabel>Site URL</FormLabel>
+							<Input
+								placeholder="URL to take the user to on login"
+								value={siteURL}
+								onChange={(e) => setSiteURL(e.target.value.trim())}
 							/>
 						</FormControl>
 						<Divider />
@@ -213,21 +244,66 @@ const AddServiceProvider = ({
 					</Button>
 					<Button
 						onClick={() => {
-							updateProvider({
-								...provider,
-								serviceProviders: {
-									...provider.serviceProviders,
-									[entityID]: {
-										name,
-										entityID,
-										metadata,
-										signingCert: cert,
-										signedRequests,
-										acsURL: acs,
+							(async () => {
+								let actualMetadata = metadata;
+
+								if (!actualMetadata) {
+									const { xml } = await make("metadata", {
+										EntityID: entityID,
+										SPSSODescriptors: [
+											{
+												AssertionConsumerServices: [
+													{
+														Binding:
+															"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+														Location: acs,
+													},
+												],
+												ProtocolSupportEnumeration: "",
+												AuthnRequestsSigned: signedRequests,
+												WantAssertionsSigned: true,
+												KeyDescriptors: [
+													{
+														Use: "signing",
+														KeyInfo: {
+															X509Data: {
+																X509Certificates: [
+																	{
+																		Data: cert,
+																	},
+																],
+															},
+														},
+													},
+												],
+											},
+										],
+									});
+
+									actualMetadata = xml;
+								}
+
+								updateProvider({
+									...provider,
+									serviceProviders: {
+										...(provider.serviceProviders || {}),
+										[entityID]: {
+											name,
+											entityID,
+											siteURL,
+											metadata: actualMetadata,
+											signingCert: cert
+												.replace(CERTIFICATE_PEM_REGEX, "")
+												.replace(CERTIFICATE_PEM_REGEX, ""),
+											signedRequests,
+											acsURL: acs,
+										},
 									},
-								},
-							});
-							onClose();
+								});
+
+								onClose();
+								resetState();
+							})();
 						}}
 					>
 						Add
