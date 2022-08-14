@@ -50,7 +50,9 @@ const AddServiceProvider = ({
 }) => {
 	const { providers, updateProvider } = useContext(Providers);
 
-	const [providerID, setProviderID] = useState(providers[0].id);
+	const [providerID, setProviderID] = useState(
+		providers.length ? providers[0].id : ""
+	);
 	const [name, setName] = useState("");
 	const [siteURL, setSiteURL] = useState("");
 	const [metadata, setMetadata] = useState("");
@@ -133,6 +135,71 @@ const AddServiceProvider = ({
 			ignore = true;
 		};
 	}, [metadata]);
+
+	const onAdd = useMemo(
+		() => () => {
+			(async () => {
+				let actualMetadata = metadata;
+
+				if (!actualMetadata) {
+					const { xml } = await make("metadata", {
+						EntityID: entityID,
+						SPSSODescriptors: [
+							{
+								AssertionConsumerServices: [
+									{
+										Binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
+										Location: acs,
+									},
+								],
+								ProtocolSupportEnumeration: "",
+								AuthnRequestsSigned: signedRequests,
+								WantAssertionsSigned: true,
+								KeyDescriptors: [
+									{
+										Use: "signing",
+										KeyInfo: {
+											X509Data: {
+												X509Certificates: [
+													{
+														Data: cert,
+													},
+												],
+											},
+										},
+									},
+								],
+							},
+						],
+					});
+
+					actualMetadata = xml;
+				}
+
+				updateProvider({
+					...provider,
+					serviceProviders: {
+						...(provider.serviceProviders || {}),
+						[entityID]: {
+							name,
+							entityID,
+							siteURL,
+							metadata: actualMetadata,
+							signingCert: cert
+								.replace(CERTIFICATE_PEM_REGEX, "")
+								.replace(CERTIFICATE_PEM_REGEX, ""),
+							signedRequests,
+							acsURL: acs,
+						},
+					},
+				});
+
+				onClose();
+				resetState();
+			})();
+		},
+		[provider, acs, signedRequests, entityID, siteURL, cert]
+	);
 
 	return (
 		<Modal isOpen={isOpen} onClose={onClose}>
@@ -242,72 +309,7 @@ const AddServiceProvider = ({
 					<Button variant="ghost" mr={3} onClick={onClose}>
 						Close
 					</Button>
-					<Button
-						onClick={() => {
-							(async () => {
-								let actualMetadata = metadata;
-
-								if (!actualMetadata) {
-									const { xml } = await make("metadata", {
-										EntityID: entityID,
-										SPSSODescriptors: [
-											{
-												AssertionConsumerServices: [
-													{
-														Binding:
-															"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST",
-														Location: acs,
-													},
-												],
-												ProtocolSupportEnumeration: "",
-												AuthnRequestsSigned: signedRequests,
-												WantAssertionsSigned: true,
-												KeyDescriptors: [
-													{
-														Use: "signing",
-														KeyInfo: {
-															X509Data: {
-																X509Certificates: [
-																	{
-																		Data: cert,
-																	},
-																],
-															},
-														},
-													},
-												],
-											},
-										],
-									});
-
-									actualMetadata = xml;
-								}
-
-								updateProvider({
-									...provider,
-									serviceProviders: {
-										...(provider.serviceProviders || {}),
-										[entityID]: {
-											name,
-											entityID,
-											siteURL,
-											metadata: actualMetadata,
-											signingCert: cert
-												.replace(CERTIFICATE_PEM_REGEX, "")
-												.replace(CERTIFICATE_PEM_REGEX, ""),
-											signedRequests,
-											acsURL: acs,
-										},
-									},
-								});
-
-								onClose();
-								resetState();
-							})();
-						}}
-					>
-						Add
-					</Button>
+					<Button onClick={onAdd}>Add</Button>
 				</ModalFooter>
 			</ModalContent>
 		</Modal>

@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"math/big"
+	"net/http"
 	"net/url"
+	"os"
 	"syscall/js"
 	"time"
 
@@ -27,8 +29,9 @@ func main() {
 func library(c chan struct{}) any {
 	return map[string]interface{}{
 		"genprovider": js.FuncOf(genprovider),
-		"parsexml":       js.FuncOf(parsexml),
-		"makexml": js.FuncOf(makexml),
+		"parsexml":    js.FuncOf(parsexml),
+		"makexml":     js.FuncOf(makexml),
+		"sso":         js.FuncOf(sso),
 	}
 }
 
@@ -211,4 +214,153 @@ func makexml(this js.Value, args []js.Value) any {
 	return returnResult(map[string]interface{}{
 		"xml": string(xmlData),
 	})
+}
+
+type providerSpec struct {
+	Certificate []byte `json:"cert"`
+	PrivateKey  []byte `json:"privateKey"`
+	EntityID    string `json:"entityID"`
+	SSOURL      string `json:"ssoURL"`
+	SLOURL      string `json:"sloURL"`
+
+	ServiceProviders map[string]struct {
+		Metadata string `json:"metadata"`
+	} `json:"serviceProviders"`
+}
+
+func (s *providerSpec) GetServiceProvider(r *http.Request, entityID string) (*saml.EntityDescriptor, error) {
+	sp, ok := s.ServiceProviders[entityID]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+
+	return samlsp.ParseMetadata([]byte(sp.Metadata))
+}
+
+type sessionProvider struct {
+	session saml.Session
+}
+
+func (p *sessionProvider) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
+	return &p.session
+}
+
+func sso(this js.Value, args []js.Value) any {
+	var provider providerSpec
+
+	if err := json.Unmarshal([]byte(args[0].String()), &provider); err != nil {
+		return returnError(err)
+	}
+
+	entityID, _ := url.ParseRequestURI(provider.EntityID)
+	ssoURL, _ := url.ParseRequestURI(provider.SSOURL)
+	sloURL, _ := url.ParseRequestURI(provider.SLOURL)
+
+	privateKey, err := x509.ParsePKCS8PrivateKey(provider.PrivateKey)
+	if err != nil {
+		return returnError(err)
+	}
+
+	cert, err := x509.ParseCertificate(provider.Certificate)
+	if err != nil {
+		return returnError(err)
+	}
+
+	idp := saml.IdentityProvider{
+		Key:                     privateKey,
+		Certificate:             cert,
+		MetadataURL:             *entityID,
+		SSOURL:                  *ssoURL,
+		LogoutURL:               *sloURL,
+		ServiceProviderProvider: &provider,
+		SessionProvider:         nil,
+	}
+
+	reqURL, _ := url.ParseRequestURI(args[1].String())
+
+	r := &http.Request{
+		Method:     http.MethodGet,
+		URL:        reqURL,
+		Form:       reqURL.Query(),
+		RequestURI: args[1].String(),
+	}
+
+	req, err := saml.NewIdpAuthnRequest(&idp, r)
+	if err != nil {
+		return returnError(err)
+	}
+
+	if err := req.Validate(); err != nil {
+		return returnError(err)
+	}
+
+	cont := js.FuncOf(func(this js.Value, args []js.Value) any {
+		var session saml.Session
+		if err := json.Unmarshal([]byte(args[0].String()), &session); err != nil {
+			return returnError(err)
+		}
+
+		idp.SessionProvider = &sessionProvider{
+			session: session,
+		}
+
+		assertionMaker := saml.DefaultAssertionMaker{}
+
+		if err := assertionMaker.MakeAssertion(req, &session); err != nil {
+			return returnError(err)
+		}
+
+		err := req.MakeResponse()
+		if err != nil {
+			return returnError(err)
+		}
+
+		responseXML, err := xml.MarshalIndent(req.ResponseEl, "", "  ")
+		if err != nil {
+			return returnError(err)
+		}
+
+		responseJSON, err := json.Marshal(req.ResponseEl)
+		if err != nil {
+			return returnError(err)
+		}
+
+		form, err := req.PostBinding()
+		if err != nil {
+			return returnError(err)
+		}
+
+		return returnResult(map[string]interface{}{
+			"URL":          form.URL,
+			"SAMLResponse": form.SAMLResponse,
+			"RelayState":   form.RelayState,
+			"xml":          string(responseXML),
+			"json":         string(responseJSON),
+		})
+	})
+
+	reqJSON, err := json.Marshal(req.Request)
+	if err != nil {
+		return returnError(err)
+	}
+
+	return returnResult(map[string]interface{}{
+		"request": string(reqJSON),
+		"cont":    cont,
+	})
+
+	//session := idp.SessionProvider.GetSession(nil, r, req)
+	//if session == nil {
+	//	return returnResult(nil)
+	//}
+
+	//form, err := req.PostBinding()
+	//if err != nil {
+	//	return returnError(err)
+	//}
+
+	//return returnResult(map[string]interface{}{
+	//	"SAMLResponse": form.SAMLResponse,
+	//	"RelayState":   form.RelayState,
+	//})
 }

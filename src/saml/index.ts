@@ -40,6 +40,20 @@ interface Library {
 		};
 		error: string;
 	};
+
+	sso: (
+		provider: string,
+		url: string
+	) => {
+		ok: {
+			request: string;
+			cont: (session: any) => {
+				ok: { RelayState: string; SAMLResponse: string; URL: string };
+				error: string;
+			};
+		};
+		error: string;
+	};
 }
 
 declare const __samltool: Library;
@@ -135,4 +149,15 @@ export const genprovider = async (flavor: "gsuite") => {
 	return result(
 		genprovider(flavor, new Uint8Array(pkcs8), entityID, ssoURL, sloURL)
 	);
+};
+
+export const sso = async (provider: any, url: string) => {
+	const { sso } = await instance();
+
+	const { request, cont } = result(sso(JSON.stringify(provider), url));
+
+	return {
+		request: JSON.parse(request),
+		cont: (session: any) => result(cont(JSON.stringify(session))),
+	};
 };
