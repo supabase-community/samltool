@@ -8,6 +8,7 @@ import NotFound from "./Pages/NotFound";
 import Home from "./Pages/Home";
 import SSO from "./Pages/SSO";
 import SLO from "./Pages/SLO";
+import Respond from "./Pages/Respond";
 
 const match = (a: URL, b: URL) => {
 	if (a.origin === b.origin && a.pathname === b.pathname) {
@@ -56,6 +57,8 @@ const App = () => {
 				<SLO key={locationHref} provider={sloProvider} />
 			) : location.pathname === "/" ? (
 				<Home />
+			) : location.pathname === "/respond" ? (
+				<Respond />
 			) : (
 				<NotFound />
 			)}

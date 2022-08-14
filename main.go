@@ -14,6 +14,7 @@ import (
 	"syscall/js"
 	"time"
 
+	"github.com/beevik/etree"
 	"github.com/hf/saml"
 	"github.com/hf/saml/samlsp"
 )
@@ -123,7 +124,7 @@ func genprovider(this js.Value, args []js.Value) any {
 		}
 	}
 
-	metadataXML, err := xml.MarshalIndent(metadata, "", "  ")
+	metadataXML, err := xml.MarshalIndent(metadata, "", "\t")
 	if err != nil {
 		return returnError(err)
 	}
@@ -290,6 +291,8 @@ func sso(this js.Value, args []js.Value) any {
 		return returnError(err)
 	}
 
+	req.Now = saml.TimeNow()
+
 	if err := req.Validate(); err != nil {
 		return returnError(err)
 	}
@@ -315,12 +318,14 @@ func sso(this js.Value, args []js.Value) any {
 			return returnError(err)
 		}
 
-		responseXML, err := xml.MarshalIndent(req.ResponseEl, "", "  ")
+		doc := etree.NewDocument()
+		doc.SetRoot(req.ResponseEl)
+		responseXML, err := doc.WriteToBytes()
 		if err != nil {
-			return returnError(err)
+			return err
 		}
 
-		responseJSON, err := json.Marshal(req.ResponseEl)
+		responseJSON, err := json.Marshal(req.Assertion)
 		if err != nil {
 			return returnError(err)
 		}

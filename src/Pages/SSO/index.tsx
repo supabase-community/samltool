@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 
 import { Container, Box, VStack } from "@chakra-ui/react";
 
+import { Link } from "@chakra-ui/react";
 import { Textarea, Button, FormControl, FormLabel } from "@chakra-ui/react";
 
 import { Provider } from "../../Providers";
@@ -20,6 +21,20 @@ const SSO = ({ provider }: { provider: Provider }) => {
 			json: string;
 		}
 	);
+	const respondURL = useMemo(() => {
+		if (form) {
+			const params = new URLSearchParams();
+			params.set("SAMLResponse", form.SAMLResponse);
+			params.set("URL", form.URL);
+			if (form.RelayState) {
+				params.set("RelayState", form.RelayState);
+			}
+
+			return `/respond?${params.toString()}`;
+		} else {
+			return null;
+		}
+	}, [form]);
 
 	useEffect(() => {
 		let ignore = false;
@@ -35,10 +50,6 @@ const SSO = ({ provider }: { provider: Provider }) => {
 		};
 	}, [provider]);
 
-	useEffect(() => {
-		console.log(form);
-	}, [form]);
-
 	const onContinue = useMemo(
 		() => () => {
 			setForm(
@@ -46,6 +57,10 @@ const SSO = ({ provider }: { provider: Provider }) => {
 					ID: "test",
 					UserName: "Test",
 					UserEmail: "test@saml.sh",
+					NameID: "test",
+					SubjectID: "test@saml.sh",
+					CreateTime: new Date().toISOString(),
+					ExpireTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
 				})
 			);
 		},
@@ -59,7 +74,24 @@ const SSO = ({ provider }: { provider: Provider }) => {
 					<FormLabel>Authentication Request</FormLabel>
 					<Textarea value={data} isReadOnly />
 				</FormControl>
+				{form && form.xml && (
+					<FormControl>
+						<FormLabel>Response</FormLabel>
+						<Textarea value={form.xml} isReadOnly />
+					</FormControl>
+				)}
+				{form && form.json && (
+					<FormControl>
+						<FormLabel>Assertion</FormLabel>
+						<Textarea value={form.json} isReadOnly />
+					</FormControl>
+				)}
 				<Button onClick={onContinue}>Continue</Button>
+				{respondURL && (
+					<Link isExternal href={respondURL}>
+						Continue
+					</Link>
+				)}
 			</VStack>
 		</Container>
 	);

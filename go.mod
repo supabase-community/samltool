@@ -2,7 +2,7 @@ module github.com/supabase/samltool
 
 go 1.18
 
-require github.com/hf/saml v0.0.0-20220814101209-f93f6c8989bd
+require github.com/hf/saml v0.0.0-20220814185401-3ba65890b981
 
 require (
 	github.com/beevik/etree v1.1.0 // indirect
