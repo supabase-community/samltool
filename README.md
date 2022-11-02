@@ -4,7 +4,7 @@ Built during [#SupaLaunchWeek 5](https://launchweek.dev).
 
 ## Why
 
-We're trying to add SAML support to [Supabase Auth](https://supabase.com/auth)
+We're adding SAML support to [Supabase Auth](https://supabase.com/auth)
 and this is a tool the world can use to test their SAML setup. It uses the
 [same library](https://github.com/crewjam/saml) we're going to be using inside
 GoTrue.
